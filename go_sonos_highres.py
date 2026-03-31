@@ -31,6 +31,10 @@ except ImportError:
 show_spotify_code = getattr(sonos_settings, "show_spotify_code", None)
 show_spotify_albumart = getattr(sonos_settings, "show_spotify_albumart", None)
 
+shazam_enabled = getattr(sonos_settings, "shazam_enabled", False)
+if shazam_enabled:
+    from async_shazam import ShazamIdentifier
+
 if show_spotify_code or show_spotify_albumart:
     try:
         import spotipy
@@ -70,7 +74,7 @@ async def get_image_data(session, url):
     return None
 
 
-async def redraw(session, sonos_data, display):
+async def redraw(session, sonos_data, display, shazam_identifier=None):
     """Redraw the screen with current data."""
     if sonos_data.status == "API error":
         return
@@ -98,6 +102,19 @@ async def redraw(session, sonos_data, display):
 
     # see if something is playing
     if sonos_data.status == "PLAYING":
+        # Apply any completed Shazam identification before checking for new track
+        if shazam_identifier:
+            shazam_result = shazam_identifier.get_result()
+            if shazam_result:
+                sonos_data.trackname = shazam_result["track"]
+                sonos_data.artist = shazam_result["artist"]
+                if shazam_result.get("album"):
+                    sonos_data.album = shazam_result["album"]
+                if shazam_result.get("image_url"):
+                    sonos_data.image_uri = shazam_result["image_url"]
+                sonos_data.shazam_resolved = True
+                sonos_data._track_is_new = True
+
         new_track_info = sonos_data.is_track_new()
         force_update = False
 
@@ -118,7 +135,11 @@ async def redraw(session, sonos_data, display):
         if new_track_info or force_update:
             _LOGGER.debug("The new_track_info state is %s and force_update state is %s, resetting display with new information", new_track_info, force_update)
 
-            if sonos_data.artist != "" and sonos_data.trackname !="":
+            # Fire Shazam identification in the background if metadata is missing
+            if shazam_identifier and sonos_data.needs_shazam:
+                shazam_identifier.identify_async(sonos_data)
+
+            if sonos_data.artist != "" and sonos_data.trackname != "" and not sonos_data.shazam_resolved:
                 if show_spotify_code or show_spotify_albumart:
                     spotify_client_id = getattr(sonos_settings, "spotify_client_id", None)
                     spotify_client_secret = getattr(sonos_settings, "spotify_client_secret", None)
@@ -297,9 +318,18 @@ async def main(loop):
         session,
     )
 
+    if shazam_enabled:
+        shazam_identifier = ShazamIdentifier(
+            session,
+            interval=getattr(sonos_settings, "shazam_interval", 30),
+            capture_duration=getattr(sonos_settings, "shazam_capture_duration", 10),
+        )
+    else:
+        shazam_identifier = None
+
     async def webhook_callback():
         """Callback to trigger after webhook is processed."""
-        await redraw(session, sonos_data, display)
+        await redraw(session, sonos_data, display, shazam_identifier)
 
     webhook = SonosWebhook(display, sonos_data, webhook_callback)
     await webhook.listen()
@@ -316,7 +346,7 @@ async def main(loop):
 
         if time.time() - sonos_data.last_update > update_interval:
             await sonos_data.refresh()
-            await redraw(session, sonos_data, display)
+            await redraw(session, sonos_data, display, shazam_identifier)
         await asyncio.sleep(1)
 
 

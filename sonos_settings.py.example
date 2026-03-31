@@ -59,6 +59,17 @@ sleep_on_tv = False
 sleep_on_linein = False
 
 
+## Shazam audio identification for radio streams with missing metadata
+# Requires ffmpeg installed on the system
+shazam_enabled = False
+
+# Minimum seconds between Shazam identification attempts
+shazam_interval = 30
+
+# Duration in seconds of audio to capture for identification
+shazam_capture_duration = 10
+
+
 ## e-ink only settings
 
 # Set to True if running on a Pi Zero along with `node-sonos-http-api` to mitigate long startup times and other performance limitations.

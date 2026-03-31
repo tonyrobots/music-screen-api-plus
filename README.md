@@ -95,6 +95,28 @@ If the script fails to execute on startup following the addition of yopur Spotif
 python3 go_sonos_highres.py
 ```
 
+# Automatic Song Identification (Shazam)
+
+Radio stations often don't provide track metadata. When this happens, the script can capture a short audio clip from the stream and use Shazam to identify what's playing.
+
+Requires `ffmpeg`:
+```
+sudo apt install ffmpeg
+```
+
+The `shazamio` Python package is already included in `requirements.txt`.
+
+Configure in `sonos_settings.py`:
+```
+shazam_enabled = True       # Enable Shazam identification (default: False)
+shazam_interval = 30        # Minimum seconds between identification attempts
+shazam_capture_duration = 10  # Seconds of audio to capture per attempt
+```
+
+When enabled, the script captures audio from the radio stream in the background, sends it to Shazam, and updates the display with the identified track, artist, album, and album art. The display is not blocked while identification runs. Expect identification to lag ~15 seconds behind a new track starting.
+
+# Autostart configuration
+
 Open a command prompt: 
 
 ```

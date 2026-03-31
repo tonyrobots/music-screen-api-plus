@@ -48,6 +48,18 @@ class SonosData():
         self.shuffle = ""
         self.crossfade = ""
 
+        self.shazam_resolved = False
+
+    @property
+    def needs_shazam(self):
+        """True when playing radio with missing track/artist metadata."""
+        return (
+            self.type == "radio"
+            and (not self.trackname or not self.artist)
+            and self.status == "PLAYING"
+            and not self.shazam_resolved
+        )
+
     @property
     def last_update(self):
         if self.last_webhook > self.last_poll:
@@ -168,6 +180,9 @@ class SonosData():
 
     async def refresh(self, payload=None):
         """Refresh the Sonos media data with provided payload or a new get request."""
+        # Reset so Shazam can re-identify if the station track changes
+        self.shazam_resolved = False
+
         if payload:
             if not self.webhook_active:
                 _LOGGER.info("Switching to webhook updates")
