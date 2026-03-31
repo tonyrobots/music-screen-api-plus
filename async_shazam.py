@@ -129,28 +129,24 @@ class ShazamIdentifier:
         """
         station = getattr(sonos_data, "station", "") or ""
         uri = getattr(sonos_data, "uri", "") or ""
-        cache_key = (station, uri)
 
-        # --- Cache check ---
+        # --- Resolve stream URL (cached to avoid repeated API lookups) ---
+        cache_key = (station, uri)
         cached = self._cache.get(cache_key)
         if cached is not None:
-            age = time.monotonic() - cached["timestamp"]
-            ttl = _CACHE_TTL_HIT if cached["result"] is not None else _CACHE_TTL_MISS
-            if age < ttl:
-                return cached["result"]
+            stream_url = cached["result"]
+        else:
+            stream_url = await self._extract_stream_url(uri, station)
+            self._store_cache(cache_key, stream_url)
 
-        # --- Resolve stream URL ---
-        stream_url = await self._extract_stream_url(uri, station)
         if not stream_url:
             _LOGGER.warning("Could not resolve stream URL for URI: %s", uri)
-            self._store_cache(cache_key, None)
             return None
 
-        # --- Capture audio ---
+        # --- Capture audio (always re-capture since radio content changes) ---
         audio_bytes = await self._capture_from_stream(stream_url, self._capture_duration)
         if not audio_bytes:
             _LOGGER.warning("ffmpeg returned no audio from: %s", stream_url)
-            self._store_cache(cache_key, None)
             return None
 
         # --- Identify ---
@@ -164,14 +160,12 @@ class ShazamIdentifier:
             raw = await self._shazam.recognize(tmp_path)
         except Exception as err:
             _LOGGER.warning("ShazamIO recognition failed: %s", err)
-            self._store_cache(cache_key, None)
             return None
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
         result = self._parse_result(raw)
-        self._store_cache(cache_key, result)
 
         if result:
             _LOGGER.info(

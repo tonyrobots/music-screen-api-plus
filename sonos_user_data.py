@@ -52,12 +52,11 @@ class SonosData():
 
     @property
     def needs_shazam(self):
-        """True when playing radio with missing track/artist metadata."""
+        """True when playing radio with missing track/artist metadata from Sonos."""
         return (
             self.type == "radio"
             and (not self.trackname or not self.artist)
             and self.status == "PLAYING"
-            and not self.shazam_resolved
         )
 
     @property

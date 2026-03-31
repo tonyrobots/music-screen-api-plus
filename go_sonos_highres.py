@@ -132,12 +132,13 @@ async def redraw(session, sonos_data, display, shazam_identifier=None):
             sonos_data.trackname = await async_demaster.strip_name(sonos_data.trackname, session, offline)
             sonos_data.album = await async_demaster.strip_name(sonos_data.album, session, offline)
 
+        # Fire Shazam identification in the background if metadata is missing
+        # (runs on every poll cycle; throttle inside identify_async prevents spamming)
+        if shazam_identifier and sonos_data.needs_shazam:
+            shazam_identifier.identify_async(sonos_data)
+
         if new_track_info or force_update:
             _LOGGER.debug("The new_track_info state is %s and force_update state is %s, resetting display with new information", new_track_info, force_update)
-
-            # Fire Shazam identification in the background if metadata is missing
-            if shazam_identifier and sonos_data.needs_shazam:
-                shazam_identifier.identify_async(sonos_data)
 
             if sonos_data.artist != "" and sonos_data.trackname != "" and not sonos_data.shazam_resolved:
                 if show_spotify_code or show_spotify_albumart:
