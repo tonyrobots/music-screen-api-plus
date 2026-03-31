@@ -106,6 +106,7 @@ class ShazamIdentifier:
             return
 
         self._last_identify_time = now
+        _LOGGER.info("Starting Shazam identification...")
         self._pending_task = asyncio.create_task(self._do_identify(sonos_data))
 
     def get_result(self):
