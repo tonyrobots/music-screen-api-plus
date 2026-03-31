@@ -33,7 +33,7 @@ show_spotify_albumart = getattr(sonos_settings, "show_spotify_albumart", None)
 
 shazam_enabled = getattr(sonos_settings, "shazam_enabled", False)
 if shazam_enabled:
-    from async_shazam import ShazamIdentifier
+    from async_shazam import ShazamIdentifier, suppress_shazam_noise
 
 if show_spotify_code or show_spotify_albumart:
     try:
@@ -286,6 +286,8 @@ def setup_logging():
 async def main(loop):
     """Main process for script."""
     setup_logging()
+    if shazam_enabled:
+        suppress_shazam_noise()
     log_git_hash()
     show_details_timeout = getattr(
         sonos_settings, "show_details_timeout", None)

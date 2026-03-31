@@ -30,7 +30,13 @@ class _ShazamNoiseFilter(logging.Filter):
         msg = record.getMessage().lower()
         return not any(j in msg for j in self._JUNK)
 
-logging.getLogger().addFilter(_ShazamNoiseFilter())
+
+def suppress_shazam_noise():
+    """Add noise filter to all handlers on the root logger. Call after logging setup."""
+    root = logging.getLogger()
+    root.addFilter(_ShazamNoiseFilter())
+    for handler in root.handlers:
+        handler.addFilter(_ShazamNoiseFilter())
 
 # Cache TTL constants
 _CACHE_TTL_HIT = 180   # seconds to cache a successful identification
