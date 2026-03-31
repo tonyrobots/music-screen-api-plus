@@ -97,23 +97,53 @@ python3 go_sonos_highres.py
 
 # Automatic Song Identification (Shazam)
 
-Radio stations often don't provide track metadata. When this happens, the script can capture a short audio clip from the stream and use Shazam to identify what's playing.
+Radio stations often don't provide track metadata. When this happens, the script can capture a short audio clip from the stream and use Shazam to identify what's playing, displaying the track name, artist, album, and album art.
 
-Requires `ffmpeg`:
+## Requirements
+
+Install `ffmpeg` and `libopenblas-dev`:
 ```
-sudo apt install ffmpeg
+sudo apt install ffmpeg libopenblas-dev
 ```
 
-The `shazamio` Python package is already included in `requirements.txt`.
-
-Configure in `sonos_settings.py`:
+Install the `shazamio` Python package system-wide (needed if the script runs with `sudo` via autostart):
 ```
-shazam_enabled = True       # Enable Shazam identification (default: False)
-shazam_interval = 30        # Minimum seconds between identification attempts
+sudo pip3 install shazamio
+```
+
+Note: `shazamio` is also included in `requirements.txt` for non-sudo installs.
+
+## Configuration
+
+Add the following to `sonos_settings.py`:
+```
+shazam_enabled = True         # Enable Shazam identification (default: False)
+shazam_interval = 30          # Minimum seconds between identification attempts
 shazam_capture_duration = 10  # Seconds of audio to capture per attempt
 ```
 
-When enabled, the script captures audio from the radio stream in the background, sends it to Shazam, and updates the display with the identified track, artist, album, and album art. The display is not blocked while identification runs. Expect identification to lag ~15 seconds behind a new track starting.
+Optional: set a longer detail display timeout for Shazam-identified tracks (useful since identification refreshes periodically):
+```
+shazam_show_details_timeout = 30  # Seconds to show track info (overrides show_details_timeout)
+```
+
+## How it works
+
+When playing a radio station with missing metadata, the script:
+1. Resolves the station's stream URL (tries TuneIn OPML API first, then [Radio-Browser.info](https://www.radio-browser.info/) lookup by station name)
+2. Captures audio from the stream via `ffmpeg` in the background
+3. Sends the audio to Shazam for identification
+4. Updates the display with the identified track, artist, album, and album art
+
+Identification runs every `shazam_interval` seconds to catch song changes. Expect results to lag ~15 seconds behind a new track starting. Songs not in Shazam's database (obscure tracks, talk segments, ads) will silently fail and retry on the next interval.
+
+## Testing
+
+A standalone test script is included:
+```
+python3 test_shazam.py [stream_url]
+```
+This exercises the full pipeline (ffmpeg capture, Shazam recognition) independently of Sonos.
 
 # Autostart configuration
 
