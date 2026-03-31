@@ -81,8 +81,8 @@ class DisplayController:  # pylint: disable=too-many-instance-attributes
         self.detail_text = tk.StringVar()
         self.play_state_text = tk.StringVar()
 
-        self.detail_font = tkFont.Font(family="consolas", size=14)
-        self.play_state_font = tkFont.Font(family="consolas", size=14)
+        self.detail_font = tkFont.Font(family="noto", size=14)
+        self.play_state_font = tkFont.Font(family="noto", size=14)
 
         self.label_albumart = tk.Label(
             self.album_frame,
@@ -108,7 +108,7 @@ class DisplayController:  # pylint: disable=too-many-instance-attributes
             fg="white",
             bg="black",
             wraplength=600,
-            justify="center",
+            justify="left",
         )
         self.label_detail = tk.Label(
             self.detail_frame,
@@ -117,7 +117,7 @@ class DisplayController:  # pylint: disable=too-many-instance-attributes
             fg="white",
             bg="black",
             wraplength=600,
-            justify="center",
+            justify="left",
         )
         self.label_play_state = tk.Label(
             self.detail_frame,
@@ -249,11 +249,11 @@ class DisplayController:  # pylint: disable=too-many-instance-attributes
                     self.THUMB_H = 620
                     self.THUMB_W = 620
                 if detail_text == "":
-                    self.track_font = tkFont.Font(family="consolas", size=37)
+                    self.track_font = tkFont.Font(family="noto", size=37)
                     self.THUMB_H = self.THUMB_H + 20
                     self.THUMB_W = self.THUMB_W + 20
                 else:
-                    self.track_font = tkFont.Font(family="consolas", size=27)
+                    self.track_font = tkFont.Font(family="noto", size=27)
 
             if len(display_trackname) > 27 and len(display_trackname) < 34:
                 self.THUMB_H = self.THUMB_H + 40
@@ -267,7 +267,7 @@ class DisplayController:  # pylint: disable=too-many-instance-attributes
             else:
                 self.THUMB_H = 640
                 self.THUMB_W = 640
-                self.track_font = tkFont.Font(family="consolas", size=37)
+                self.track_font = tkFont.Font(family="noto", size=37)
 
             if len(display_trackname) > 22 and len(display_trackname) < 35:
                 self.THUMB_H = self.THUMB_H + 40
