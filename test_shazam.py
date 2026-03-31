@@ -16,7 +16,7 @@ import aiohttp
 
 from async_shazam import ShazamIdentifier
 
-DEFAULT_STREAM_URL = "http://stream.live.vc.bbcmedia.co.uk/bbc_radio_two"
+DEFAULT_STREAM_URL = "https://listen.xray.fm/stream"
 
 # Sample Sonos-style URIs to exercise _extract_stream_url
 SAMPLE_URIS = [
