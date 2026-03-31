@@ -216,11 +216,13 @@ class ShazamIdentifier:
         if uri.startswith("x-rincon-mp3radio://"):
             return "http://" + uri[len("x-rincon-mp3radio://"):]
 
-        # 2. x-sonosapi-radio:s12345?... -> TuneIn OPML lookup
-        if uri.startswith("x-sonosapi-radio:"):
-            match = re.search(r"(s\d+)", uri)
+        # 2. x-sonosapi-radio: or x-sonosapi-stream: with TuneIn ID -> OPML lookup
+        if uri.startswith(("x-sonosapi-radio:", "x-sonosapi-stream:")):
+            match = re.search(r"tunein%3a(\d+)", uri) or re.search(r"(s\d+)", uri)
             if match:
                 station_id = match.group(1)
+                if not station_id.startswith("s"):
+                    station_id = "s" + station_id
                 url = await self._resolve_tunein(station_id)
                 if url:
                     return url
