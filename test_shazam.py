@@ -53,7 +53,7 @@ async def main():
         # ------------------------------------------------------------------
         print("\n[2] Testing stream URL extraction from Sonos-style URIs...")
         for uri in SAMPLE_URIS:
-            resolved = await identifier._extract_stream_url(uri, speaker_ip=None)
+            resolved = await identifier._extract_stream_url(uri, station_name="Test Station")
             status = "OK" if resolved else "UNRESOLVED"
             print(f"    [{status}]  {uri}")
             print(f"           -> {resolved}")
