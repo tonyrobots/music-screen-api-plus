@@ -19,7 +19,8 @@ _REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=5)
 _LOGGER = logging.getLogger(__name__)
 
 # Suppress noisy "skipping junk" / "invalid mpeg audio header" warnings from shazamio internals
-logging.getLogger("shazamio").setLevel(logging.ERROR)
+for _name in ("shazamio", "pydub", "pydub.converter"):
+    logging.getLogger(_name).setLevel(logging.ERROR)
 
 # Cache TTL constants
 _CACHE_TTL_HIT = 180   # seconds to cache a successful identification
@@ -160,6 +161,8 @@ class ShazamIdentifier:
             _LOGGER.warning("Could not resolve stream URL for URI: %s", uri)
             self._store_cache(cache_key, None)
             return None
+
+        _LOGGER.info("Resolved stream URL: %s", stream_url)
 
         # --- Capture audio ---
         audio_bytes = await self._capture_from_stream(stream_url, self._capture_duration)
