@@ -30,16 +30,8 @@ _CACHE_MAX_ENTRIES = 20
 # TuneIn OPML endpoint for resolving station IDs to stream URLs
 _TUNEIN_URL = "http://opml.radiotime.com/Tune.ashx?id={station_id}&render=json"
 
-# UPnP SOAP action to get current media info from the Sonos speaker
-_SOAP_BODY = """<?xml version="1.0" encoding="utf-8"?>
-<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
-            s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-  <s:Body>
-    <u:GetMediaInfo xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
-      <InstanceID>0</InstanceID>
-    </u:GetMediaInfo>
-  </s:Body>
-</s:Envelope>"""
+# Radio-Browser.info API for looking up station stream URLs by name
+_RADIO_BROWSER_URL = "https://de1.api.radio-browser.info/json/stations/byname/{name}"
 
 
 class ShazamIdentifier:
@@ -148,25 +140,11 @@ class ShazamIdentifier:
                 return cached["result"]
 
         # --- Resolve stream URL ---
-        speaker_ip = None
-        speaker_uri = getattr(sonos_data, "_speaker_uri", None)
-        if speaker_uri:
-            # speaker_uri format: "http://<ip>:1400"
-            match = re.search(r"https?://([^:]+):\d+", speaker_uri)
-            if match:
-                speaker_ip = match.group(1)
-
-        # If speaker IP not yet discovered, try to find it via node-sonos-http-api zones
-        if not speaker_ip:
-            speaker_ip = await self._discover_speaker_ip(sonos_data)
-
-        stream_url = await self._extract_stream_url(uri, speaker_ip)
+        stream_url = await self._extract_stream_url(uri, station)
         if not stream_url:
             _LOGGER.warning("Could not resolve stream URL for URI: %s", uri)
             self._store_cache(cache_key, None)
             return None
-
-        _LOGGER.info("Resolved stream URL: %s", stream_url)
 
         # --- Capture audio ---
         audio_bytes = await self._capture_from_stream(stream_url, self._capture_duration)
@@ -206,15 +184,15 @@ class ShazamIdentifier:
     # Internal: stream URL resolution
     # ------------------------------------------------------------------
 
-    async def _extract_stream_url(self, uri, speaker_ip):
+    async def _extract_stream_url(self, uri, station_name):
         """
         Resolve a Sonos URI to a playable HTTP stream URL.
 
         Tries in order:
         1. x-rincon-mp3radio:// prefix — strip and prepend http://
-        2. x-sonosapi-radio: — extract TuneIn station ID, query OPML API
-        3. Already http(s):// — use directly
-        4. UPnP SOAP fallback to the Sonos speaker
+        2. Already http(s):// — use directly
+        3. x-sonosapi-radio/stream: — extract TuneIn station ID, query OPML API
+        4. Radio-Browser.info lookup by station name
         """
         if not uri:
             return None
@@ -223,7 +201,11 @@ class ShazamIdentifier:
         if uri.startswith("x-rincon-mp3radio://"):
             return "http://" + uri[len("x-rincon-mp3radio://"):]
 
-        # 2. x-sonosapi-radio: or x-sonosapi-stream: with TuneIn ID -> OPML lookup
+        # 2. Direct HTTP(S) URL
+        if uri.startswith("http://") or uri.startswith("https://"):
+            return uri
+
+        # 3. x-sonosapi-radio: or x-sonosapi-stream: with TuneIn ID -> OPML lookup
         if uri.startswith(("x-sonosapi-radio:", "x-sonosapi-stream:")):
             match = re.search(r"tunein%3a(\d+)", uri) or re.search(r"(s\d+)", uri)
             if match:
@@ -234,39 +216,12 @@ class ShazamIdentifier:
                 if url:
                     return url
 
-        # 3. Direct HTTP(S) URL
-        if uri.startswith("http://") or uri.startswith("https://"):
-            return uri
+        # 4. Radio-Browser.info lookup by station name
+        if station_name:
+            url = await self._resolve_radio_browser(station_name)
+            if url:
+                return url
 
-        # 4. UPnP SOAP fallback
-        if speaker_ip:
-            return await self._soap_get_media_info(speaker_ip)
-
-        return None
-
-    async def _discover_speaker_ip(self, sonos_data):
-        """Discover the Sonos speaker's IP via node-sonos-http-api /zones endpoint."""
-        api_host = getattr(sonos_data, "api_host", None)
-        api_port = getattr(sonos_data, "api_port", None)
-        room = getattr(sonos_data, "room", None)
-        if not all([api_host, api_port, room]):
-            return None
-
-        url = f"http://{api_host}:{api_port}/zones"
-        try:
-            async with self._session.get(url, timeout=_REQUEST_TIMEOUT) as resp:
-                if resp.status != 200:
-                    return None
-                zones = await resp.json()
-                for zone in zones:
-                    for member in zone.get("members", []):
-                        if member.get("roomName") == room:
-                            # member["state"]["ip"] or extract from member["uuid"] URL
-                            host = member.get("host")
-                            if host:
-                                return host
-        except Exception as err:
-            _LOGGER.warning("Failed to discover speaker IP via zones: %s", err)
         return None
 
     async def _resolve_tunein(self, station_id):
@@ -287,32 +242,21 @@ class ShazamIdentifier:
             _LOGGER.warning("TuneIn OPML lookup failed for %s: %s", station_id, err)
         return None
 
-    async def _soap_get_media_info(self, speaker_ip):
-        """
-        Send a UPnP GetMediaInfo SOAP request to the Sonos speaker and
-        extract the underlying stream URL from the response.
-        """
-        endpoint = f"http://{speaker_ip}:1400/MediaRenderer/AVTransport/Control"
-        headers = {
-            "Content-Type": 'text/xml; charset="utf-8"',
-            "SOAPACTION": '"urn:schemas-upnp-org:service:AVTransport:1#GetMediaInfo"',
-        }
+    async def _resolve_radio_browser(self, station_name):
+        """Look up a station's stream URL via the Radio-Browser.info API."""
+        from urllib.parse import quote
+        url = _RADIO_BROWSER_URL.format(name=quote(station_name))
         try:
-            async with self._session.post(
-                endpoint, data=_SOAP_BODY.encode("utf-8"), headers=headers,
-                timeout=_REQUEST_TIMEOUT,
-            ) as resp:
+            async with self._session.get(url, timeout=_REQUEST_TIMEOUT) as resp:
                 if resp.status != 200:
                     return None
-                text = await resp.text()
-                # CurrentURI is inside <CurrentURI>...</CurrentURI>
-                match = re.search(r"<CurrentURI>(.*?)</CurrentURI>", text)
-                if match:
-                    current_uri = match.group(1)
-                    if current_uri.startswith("http"):
-                        return current_uri
+                stations = await resp.json()
+                for station in stations:
+                    stream_url = station.get("url_resolved") or station.get("url")
+                    if stream_url and stream_url.startswith("http"):
+                        return stream_url
         except Exception as err:
-            _LOGGER.warning("UPnP SOAP GetMediaInfo failed for %s: %s", speaker_ip, err)
+            _LOGGER.warning("Radio-Browser.info lookup failed for %s: %s", station_name, err)
         return None
 
     # ------------------------------------------------------------------
