@@ -109,7 +109,7 @@ async def redraw(session, sonos_data, display, shazam_identifier=None):
                 display.show_details_timeout = getattr(
                     sonos_settings, "show_details_timeout", None)
             shazam_result = shazam_identifier.get_result()
-            if shazam_result:
+            if shazam_result and sonos_data.needs_shazam:
                 sonos_data.trackname = shazam_result["track"]
                 sonos_data.artist = shazam_result["artist"]
                 if shazam_result.get("album"):
