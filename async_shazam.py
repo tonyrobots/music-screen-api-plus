@@ -22,6 +22,16 @@ _LOGGER = logging.getLogger(__name__)
 for _name in ("shazamio", "pydub", "pydub.converter"):
     logging.getLogger(_name).setLevel(logging.ERROR)
 
+
+class _ShazamNoiseFilter(logging.Filter):
+    """Filter out shazamio's internal audio decoder noise from the root logger."""
+    _JUNK = ("skipping junk", "invalid mpeg audio header", "format marker")
+    def filter(self, record):
+        msg = record.getMessage().lower()
+        return not any(j in msg for j in self._JUNK)
+
+logging.getLogger().addFilter(_ShazamNoiseFilter())
+
 # Cache TTL constants
 _CACHE_TTL_HIT = 180   # seconds to cache a successful identification
 _CACHE_TTL_MISS = 60   # seconds to cache a failed identification (no match)
