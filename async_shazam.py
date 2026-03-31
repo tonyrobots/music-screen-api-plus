@@ -252,7 +252,7 @@ class ShazamIdentifier:
                 body = data.get("body", [])
                 for item in body:
                     item_url = item.get("url", "")
-                    if item_url.startswith("http"):
+                    if item_url.startswith("http") and "tunein.com/service/Audio" not in item_url:
                         return item_url
         except Exception as err:
             _LOGGER.warning("TuneIn OPML lookup failed for %s: %s", station_id, err)
