@@ -156,6 +156,10 @@ class ShazamIdentifier:
             if match:
                 speaker_ip = match.group(1)
 
+        # If speaker IP not yet discovered, try to find it via node-sonos-http-api zones
+        if not speaker_ip:
+            speaker_ip = await self._discover_speaker_ip(sonos_data)
+
         stream_url = await self._extract_stream_url(uri, speaker_ip)
         if not stream_url:
             _LOGGER.warning("Could not resolve stream URL for URI: %s", uri)
@@ -238,6 +242,31 @@ class ShazamIdentifier:
         if speaker_ip:
             return await self._soap_get_media_info(speaker_ip)
 
+        return None
+
+    async def _discover_speaker_ip(self, sonos_data):
+        """Discover the Sonos speaker's IP via node-sonos-http-api /zones endpoint."""
+        api_host = getattr(sonos_data, "api_host", None)
+        api_port = getattr(sonos_data, "api_port", None)
+        room = getattr(sonos_data, "room", None)
+        if not all([api_host, api_port, room]):
+            return None
+
+        url = f"http://{api_host}:{api_port}/zones"
+        try:
+            async with self._session.get(url, timeout=_REQUEST_TIMEOUT) as resp:
+                if resp.status != 200:
+                    return None
+                zones = await resp.json()
+                for zone in zones:
+                    for member in zone.get("members", []):
+                        if member.get("roomName") == room:
+                            # member["state"]["ip"] or extract from member["uuid"] URL
+                            host = member.get("host")
+                            if host:
+                                return host
+        except Exception as err:
+            _LOGGER.warning("Failed to discover speaker IP via zones: %s", err)
         return None
 
     async def _resolve_tunein(self, station_id):
