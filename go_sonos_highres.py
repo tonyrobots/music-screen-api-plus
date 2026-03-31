@@ -106,7 +106,8 @@ async def redraw(session, sonos_data, display, shazam_identifier=None):
         if shazam_identifier:
             # Restore default detail timeout (Shazam may have overridden it)
             if not sonos_data.shazam_resolved:
-                display.show_details_timeout = show_details_timeout
+                display.show_details_timeout = getattr(
+                    sonos_settings, "show_details_timeout", None)
             shazam_result = shazam_identifier.get_result()
             if shazam_result:
                 sonos_data.trackname = shazam_result["track"]
