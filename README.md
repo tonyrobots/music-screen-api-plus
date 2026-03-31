@@ -1,48 +1,40 @@
-# Music screen
+# Music Screen API Plus
 
-A set of scripts to display current and recent music information.
+> Fork of [hankhank10/music-screen-api](https://github.com/hankhank10/music-screen-api), adding [Shazam-based audio identification](#automatic-song-identification-shazam) for radio streams that don't carry their own metadata. Active development — more features planned.
 
-It uses either the Pimoroni wHAT e-ink display to display track information; or the Pimoroni HyperPixel 4.0 Square (Non Touch) High Res display to display full colour album art.
+A Raspberry Pi application that displays currently-playing music information from your local Sonos system. Supports the Pimoroni HyperPixel 4.0 Square (high-res color album art) and the Pimoroni inky wHAT (e-ink display).
 
 ![sonos-music-api Examples of Display Modes](https://user-images.githubusercontent.com/42817877/153710473-2fbe9534-b7d6-423e-8fd3-20193611c99e.png)
 
 ![sonos-music-api Examples of Display Modes Show Play Settings](https://user-images.githubusercontent.com/42817877/209093576-1bf5e0c0-ef5d-473f-8d7a-9d06ddb2f1e0.png)
 
-Works in real time with your local Sonos system. Also includes functionality to pull last played tracks and music history from last.fm.
-
-No authentication required for either service.
-
-Note: this replaces the now deprecated [ink-music-stats](https://github.com/hankhank10/ink-music-stats) repo.
-
-Note: A Spotify developer account ([Information here](https://developer.spotify.com/)) is required to display the Spotify Code of the playing track 
+Works in real time with your local Sonos system. Optional integrations with Spotify (album art, Spotify Codes) and last.fm (play history). No authentication required for basic functionality.
 
 # Required hardware
 
-Raspberry Pi 3 or 4 are recommended. The Pi 3 A+ is a smaller form factor which fits behind the HyperPixel Square display nicely as long as no more than one USB port is needed for other projects.
+Raspberry Pi 3 or 4 recommended. The Pi 3 A+ fits behind the HyperPixel Square display nicely. Pi Zero W can be used with [some stipulations](#important-notice-on-pi-zero).
 
-Raspberry Pi Zero W can be used with some stipulations noted [here](#important-notice-on-pi-zero).
+- [Pimoroni inky wHAT](https://shop.pimoroni.com/products/inky-what?variant=21214020436051)
+- [Pimoroni HyperPixel 4.0 Square Non Touch](https://shop.pimoroni.com/products/hyperpixel-4-square?variant=30138251477075)
 
-[Pimoroni inky wHAT](https://shop.pimoroni.com/products/inky-what?variant=21214020436051)
+# Installation
 
-[Pimoroni HyperPixel 4.0 Square Non Touch](https://shop.pimoroni.com/products/hyperpixel-4-square?variant=30138251477075)
+Step-by-step guides for beginners:
+- [e-INK version](https://www.hackster.io/mark-hank/currently-playing-music-on-e-ink-display-310645)
+- [High-res version](https://www.hackster.io/mark-hank/sonos-album-art-on-raspberry-pi-screen-5b0012)
 
-# Step-by-step beginner installation instructions
+Before running, copy the example settings file and edit it:
+```
+cp sonos_settings.py.example sonos_settings.py
+nano sonos_settings.py
+```
 
-I have put together step-by-step basic instructions:
+## Quick install (dependencies only)
 
-- [e-INK version here](https://www.hackster.io/mark-hank/currently-playing-music-on-e-ink-display-310645)
-- [High res version here](https://www.hackster.io/mark-hank/sonos-album-art-on-raspberry-pi-screen-5b0012)
-
-Note that before running go_sonos_highres.py you need to create your own copy of sonos_settings.py: there is an example file in this repo as sonos_settings.py.example
-
-# Key dependencies to load if you know what you're doing and don't want to follow all the steps above
-
-````
-sudo apt install python3-tk
-sudo apt install python3-pil 
-sudo apt install python3-pil.imagetk
+```
+sudo apt install python3-tk python3-pil python3-pil.imagetk
 pip3 install -r requirements.txt
-````
+```
 
 # Webhook updates
 
@@ -58,8 +50,6 @@ _Note_: This file does not exist by default and you may need to create it. Also 
 
 The above configuration assumes that `node-sonos-http-api` is running on the same machine. If running on a different machine, replace `localhost` with the IP of the host running this script.
 
-
-
 # Backlight control
 
 Thanks to a pull request from [jjlawren](https://github.com/jjlawren) the backlight of the Hyperpixel will turn off when music is not playing to save power & the environment.
@@ -71,28 +61,22 @@ sudo gpasswd -a pi gpio
 
 ```
 
-# Displaying Spotify Codes or Using Spotify Album Art
+# Spotify Codes and Album Art
 
-To display a Spotify Code or use Spotify album art instead of that loaded on to your Sonos system for the playing song, you need to install spotipy ([https://pypi.org/project/spotipy/](https://pypi.org/project/spotipy/)) and setup a Spotify Developer account ([Information here](https://developer.spotify.com/)), as well as adding your Spotify API Client_ID and Spotify API client_SECRET into the `sonos_settings.py` file, you also need to set the `show_spotify_code` and/or `show_spotify_albumart` to True as below:
+To display Spotify Codes or use Spotify album art, you need a [Spotify Developer account](https://developer.spotify.com/) and the [spotipy](https://pypi.org/project/spotipy/) package. Add your credentials to `sonos_settings.py`:
+
 ```
-#Spotify API Details
 spotify_client_id = ""
 spotify_client_secret = ""
-spotify_market = None
+spotify_market = None       # Optional: set to a country code (e.g. "US") to localize results
 
-# Show a Spotify Code graphic for the currently playing song if playing from Spotify
-show_spotify_code = True
-
-#Overide the album art with that from Spotify if available
-show_spotify_albumart = True
+show_spotify_code = True       # Show Spotify Code graphic for the current track
+show_spotify_albumart = True   # Use Spotify album art instead of Sonos-provided art
 ```
 
-NOTE: You can localise the Spotify search to your country using the `spotify_market` setting in `sonos_settings.py` by changing `None` to one of the country codes recognised by the Spotify API ([Information Here](https://developer.spotify.com/documentation/web-api/reference/#/operations/search))
-
-If the script fails to execute on startup following the addition of yopur Spotify API details and setting `show_spotify_code` and/or `show_spotify_albumart` to True, confirm if it is possible to manually execute the `go_sonos_highres.py` script using the following command from within the `music-screen-api` directory:
-
+If the script fails after adding Spotify credentials, test them manually:
 ```
-python3 go_sonos_highres.py
+python3 spotipy_auth_search_test.py
 ```
 
 # Automatic Song Identification (Shazam)
@@ -101,17 +85,15 @@ Radio stations often don't provide track metadata. When this happens, the script
 
 ## Requirements
 
-Install `ffmpeg` and `libopenblas-dev`:
+Install system dependencies:
 ```
 sudo apt install ffmpeg libopenblas-dev
 ```
 
-Install the `shazamio` Python package system-wide (needed if the script runs with `sudo` via autostart):
+The `shazamio` Python package is included in `requirements.txt`. If you haven't already run `pip3 install -r requirements.txt`, install it with:
 ```
-sudo pip3 install shazamio
+pip3 install shazamio
 ```
-
-Note: `shazamio` is also included in `requirements.txt` for non-sudo installs.
 
 ## Configuration
 
@@ -147,59 +129,30 @@ This exercises the full pipeline (ffmpeg capture, Shazam recognition) independen
 
 # Autostart configuration
 
-Open a command prompt: 
+To start the script automatically on boot, add it to the LXDE autostart file:
 
 ```
 sudo nano /etc/xdg/lxsession/LXDE-pi/autostart
 ```
 
-Then it is necessary to stop executing `go_sonos_highres.py` script with sudo privileges by changing the following line at the end of the file that has opened: 
-
-from:
+Add the following line at the end:
 ```
-@sudo /usr/bin/python3 /home/pi/music-screen-api/go_sonos_highres.py
+@sh ~/music-screen-api/music-screen-api-startup.sh
 ```
 
-to:
-```
-@/usr/bin/python3 /home/pi/music-screen-api/go_sonos_highres.py
-```
-
-If this doesn't work, you may not have setup your Spotify API details correctly, you can use the `spotipy_auth_search_test.py` script to help diagnose your problem using the following command from within the `music-screen-api` directory:
-
-```
-python3 spotipy_auth_search_test.py
-```
-Enter an artist and song title when prompted to see if you can successfully search Spotify using spotipy
-
-Depending on your user permissions, using the above instructions to autostart the `go_sonos_highres.py` script may lead to numerous warning messages in the log file as spotipy expects to have access to a `.cache` file in the directory the script was executed from. If this is the case the newly added `music-screen-api-startup.sh` script can be used instead:
-
-The contents of `music-screen-api-startup.sh` is:
+The included `music-screen-api-startup.sh` script handles `cd`-ing into the project directory before launching, which is important for features like Spotify (spotipy's `.cache` file) to work correctly. Its contents:
 ```
 cd ~/music-screen-api
 python3 go_sonos_highres.py
 ```
 
-Open a command prompt: 
+**Note:** The script should run as your normal user, not with `sudo`. Running with `sudo` causes display access issues and requires system-wide pip installs. If you have an older autostart entry using `@sudo /usr/bin/python3 ...`, replace it with the startup script line above.
 
-```
-sudo nano /etc/xdg/lxsession/LXDE-pi/autostart
-```
+## Spotify autostart troubleshooting
 
- It is then necessary to stop executing `go_sonos_highres.py` script directly by changing the following line at the end of the file that has opened: 
-
-from:
+If the script fails on startup after configuring Spotify, verify your API credentials work by running manually:
 ```
-@/usr/bin/python3 /home/pi/music-screen-api/go_sonos_highres.py
-```
-or
-```
-@sudo /usr/bin/python3 /home/pi/music-screen-api/go_sonos_highres.py
-```
-
-to:
-```
-@sh ~/music-screen-api/music-screen-api-startup.sh
+python3 spotipy_auth_search_test.py
 ```
 
 # REST API
@@ -242,12 +195,9 @@ The e-ink script can be got running with a Pi Zero, however you will want to not
 
 (Thanks to reddit user u/Burulambie for helping me troubleshoot this)
 
-# Important notice on "demaster"
+# Demaster (track name cleanup)
 
-This script uses my ["demaster" script](https://github.com/hankhank10/demaster) to remove some of the nonsense from the end of track names which make them difficult to display (eg - Live at etc, (Remastered 2011), etc). This is highly recommended for displaying on a screen as otherwise it becomes unweildy to read the track names.
+The script uses [demaster](https://github.com/hankhank10/demaster) to strip noise from track names ("Remastered 2011", "Live at...", etc.) for cleaner display. Enabled by default.
 
-Two important points for you to note here:
-
-1. If you want to turn this off then you can by opening sonossettings.py and changing demaster to False. This will then show the full track name as reported by Sonos.
-
-2. Demaster makes use of an online API to efficiently reduce the track names and ensure that it is able to learn from previous amendments. This means that in default mode track names are sent to a remote server when they are played to get the shorter name. No personally identifying information is associated with this API request but if you're uncomfortable with this then rather than disabling demaster entirely then you can set it to run in offline only mode by setting the `demaster_query_cloud` option in your `sonos_settings.py` to `False`.  This means that the local script will attempt to do some limited reduction of nonsense in track names, but you won't benefit from the latest algorithm to do this - but it's still a lot better than nothing if you're worried about privacy.
+- **Disable**: set `demaster = False` in `sonos_settings.py`
+- **Privacy**: by default, track names are sent to a remote API for more accurate cleanup. No personal information is included. To use offline-only mode, set `demaster_query_cloud = False` in `sonos_settings.py` — this uses a local regex which is less thorough but avoids any network requests.
