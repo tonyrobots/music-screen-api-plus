@@ -194,7 +194,7 @@ class ShazamIdentifier:
         audio_bytes = await self._capture_from_stream(stream_url, self._capture_duration)
         if not audio_bytes:
             _LOGGER.warning("ffmpeg returned no audio from: %s", stream_url)
-            self._cache.pop(cache_key, None)
+            self._store_cache(cache_key, None)
             if station:
                 self._mark_stream_url_failed(station, stream_url)
             return None
@@ -392,11 +392,17 @@ class ShazamIdentifier:
         Only modifies dict entries with "auto": true. User-supplied plain string
         entries are left untouched.
         """
-        if not os.path.exists(_STREAM_URLS_FILE):
-            return
         try:
-            with open(_STREAM_URLS_FILE, "r", encoding="utf-8") as fh:
-                data = json.load(fh)
+            if os.path.exists(_STREAM_URLS_FILE):
+                with open(_STREAM_URLS_FILE, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+            else:
+                data = {
+                    "_comment": "Station name to stream URL mappings for Shazam audio capture. "
+                               "To add a station, just add a name and URL. Entries with 'auto' "
+                               "were discovered automatically. Entries marked 'failed' could not "
+                               "be reached and should be corrected or deleted."
+                }
 
             station_lower = station_name.lower()
             for key, value in data.items():
@@ -408,8 +414,8 @@ class ShazamIdentifier:
                         data[key] = {**value, "status": "failed"}
                     break
             else:
-                # No matching entry — nothing to mark
-                return
+                # No existing entry — create one marked as failed
+                data[station_name] = {"url": url, "auto": True, "status": "failed"}
 
             with open(_STREAM_URLS_FILE, "w", encoding="utf-8") as fh:
                 json.dump(data, fh, indent=4)
