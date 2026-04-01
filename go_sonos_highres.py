@@ -15,6 +15,10 @@ from io import BytesIO
 from aiohttp import ClientError, ClientSession
 from PIL import Image, ImageFile
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_ASSETS_DIR = os.path.join(_BASE_DIR, "assets")
+sys.path.insert(0, os.path.join(_BASE_DIR, "lib"))
+
 import async_demaster
 from display_controller import DisplayController, SonosDisplaySetupError
 from sonos_user_data import SonosData
@@ -228,15 +232,15 @@ async def redraw(session, sonos_data, display, shazam_identifier=None):
             if image_data:
                 pil_image = Image.open(BytesIO(image_data))
             elif sonos_data.type == "line_in":
-                pil_image = Image.open(sys.path[0] + "/line_in.png")
+                pil_image = Image.open(os.path.join(_ASSETS_DIR, "line_in.png"))
             elif sonos_data.type == "TV":
-                pil_image = Image.open(sys.path[0] + "/tv.png")
+                pil_image = Image.open(os.path.join(_ASSETS_DIR, "tv.png"))
 
             if pil_image is None:
                 if show_spotify_code or show_spotify_albumart:
-                    pil_image = Image.open(sys.path[0] + "/spotify_sonos.png")
+                    pil_image = Image.open(os.path.join(_ASSETS_DIR, "spotify_sonos.png"))
                 else:
-                    pil_image = Image.open(sys.path[0] + "/sonos.png")
+                    pil_image = Image.open(os.path.join(_ASSETS_DIR, "sonos.png"))
                 _LOGGER.warning("Image not available, using default")
 
             display.update(code_image, pil_image, sonos_data)
@@ -250,7 +254,7 @@ def log_git_hash():
     """Log the current git hash for troubleshooting purposes."""
     try:
         git_hash = subprocess.check_output(
-            ["git", "describe"], cwd=sys.path[0], text=True).strip()
+            ["git", "describe"], cwd=_BASE_DIR, text=True).strip()
     except (OSError, subprocess.CalledProcessError) as err:
         _LOGGER.debug("Error getting current version: %s", err)
     else:

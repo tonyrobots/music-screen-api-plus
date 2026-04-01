@@ -28,18 +28,30 @@ sudo apt install python3-tk python3-pil python3-pil.imagetk
 pip3 install -r requirements.txt
 ```
 
+## Directory Structure
+
+```
+go_sonos_highres.py         # Entry point: HyperPixel high-res display (primary)
+go_sonos.py                 # Entry point: e-ink inky wHAT display (legacy)
+go_last.py                  # Entry point: Last.fm display
+sonos_settings.py           # Local config (copy from sonos_settings.py.example)
+assets/                     # Static image assets (PNG fallback images)
+lib/                        # Supporting Python modules (added to sys.path at runtime)
+tests/                      # Standalone test/debug scripts
+```
+
 ## Architecture
 
 The high-res path (`go_sonos_highres.py`) is the main, actively-maintained version. It runs an async event loop with:
 
-- **`SonosData`** (`sonos_user_data.py`) - Fetches/stores speaker state from `node-sonos-http-api`. Handles both polling (1s interval) and webhook-driven updates (60s fallback poll). Parses radio stream metadata with artist/track splitting logic for `artist_and_album_newlook` mode.
-- **`SonosWebhook`** (`webhook_handler.py`) - aiohttp web server on port 8080. Receives POST webhooks from `node-sonos-http-api` and exposes REST endpoints: `GET /status`, `POST /set-room`, `POST /show-detail`.
-- **`DisplayController`** (`display_controller.py`) - Tkinter fullscreen GUI (720x720). Manages three stacked frames: album art, detail view (track/artist/album text + play state), and curtain (black screen for idle). Controls HyperPixel backlight via GPIO.
-- **`async_demaster`** (`async_demaster.py`) - Strips "Remastered", "Live at", etc. from track names. Online API at `demaster.hankapi.com` with offline regex fallback.
-- **`Backlight`** (`hyperpixel_backlight.py`) - GPIO pin 19 control for HyperPixel backlight. Gracefully degrades if RPi.GPIO unavailable.
-- **`ShazamIdentifier`** (`async_shazam.py`) - Identifies songs on radio streams when metadata is missing. Resolves Sonos URIs to stream URLs (TuneIn OPML → Radio-Browser.info fallback), captures audio via ffmpeg subprocess, identifies via shazamio. Runs as a background `asyncio.Task` with 30s throttle. Conditionally loaded when `shazam_enabled = True`.
+- **`SonosData`** (`lib/sonos_user_data.py`) - Fetches/stores speaker state from `node-sonos-http-api`. Handles both polling (1s interval) and webhook-driven updates (60s fallback poll). Parses radio stream metadata with artist/track splitting logic for `artist_and_album_newlook` mode.
+- **`SonosWebhook`** (`lib/webhook_handler.py`) - aiohttp web server on port 8080. Receives POST webhooks from `node-sonos-http-api` and exposes REST endpoints: `GET /status`, `POST /set-room`, `POST /show-detail`.
+- **`DisplayController`** (`lib/display_controller.py`) - Tkinter fullscreen GUI (720x720). Manages three stacked frames: album art, detail view (track/artist/album text + play state), and curtain (black screen for idle). Controls HyperPixel backlight via GPIO.
+- **`async_demaster`** (`lib/async_demaster.py`) - Strips "Remastered", "Live at", etc. from track names. Online API at `demaster.hankapi.com` with offline regex fallback.
+- **`Backlight`** (`lib/hyperpixel_backlight.py`) - GPIO pin 19 control for HyperPixel backlight. Gracefully degrades if RPi.GPIO unavailable.
+- **`ShazamIdentifier`** (`lib/async_shazam.py`) - Identifies songs on radio streams when metadata is missing. Resolves Sonos URIs to stream URLs (TuneIn OPML → Radio-Browser.info fallback), captures audio via ffmpeg subprocess, identifies via shazamio. Runs as a background `asyncio.Task` with 30s throttle. Conditionally loaded when `shazam_enabled = True`.
 
-The e-ink path (`go_sonos.py`) is legacy: synchronous polling loop using `sonos_user_data_legacy.py`, `demaster.py` (sync version), and `ink_printer.py`.
+The e-ink path (`go_sonos.py`) is legacy: synchronous polling loop using `lib/sonos_user_data_legacy.py`, `lib/demaster.py` (sync version), and `lib/ink_printer.py`.
 
 ## Key Design Patterns
 

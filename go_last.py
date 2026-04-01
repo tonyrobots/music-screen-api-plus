@@ -1,6 +1,10 @@
+import os
+import sys
 import time # needed to delay x seconds between checks
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+
 import lastfm_user_data # the api which pulls the lastfm data
-import sys # needed to pull command line arguments
 import ink_printer # does the printing to ink
 
 # set globals

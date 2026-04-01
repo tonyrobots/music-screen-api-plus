@@ -1,8 +1,13 @@
 #This utility can be used to help troubleshoot authentication of your Spotify API credentials and searching Spotify using spotipy
 # Run using python3 spotipy_auth_search_test.py 
 
+import os
 import re
 import sys
+
+# Allow importing sonos_settings from the repo root
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 try:
     import spotipy
     from spotipy.oauth2 import SpotifyClientCredentials

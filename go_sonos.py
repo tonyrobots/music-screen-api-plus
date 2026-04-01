@@ -1,9 +1,15 @@
 # This file is for use with the Pimoroni inky wHAT display
 # it integrates with your local Sonos sytem to display what is currently playing
 
+import os
+import sys
 import time # needed to delay x seconds between checks
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_ASSETS_DIR = os.path.join(_BASE_DIR, "assets")
+sys.path.insert(0, os.path.join(_BASE_DIR, "lib"))
+
 import sonos_user_data_legacy as sonos_user_data # the api which pulls the lastfm data
-import sys # needed to pull command line arguments
 import ink_printer # does the printing to ink
 
 import sonos_settings
@@ -81,7 +87,7 @@ while True:
             if sleep_mode_sleeping == False:
                 # set the screen depending on settings
                 if sleep_mode_output == "logo":
-                    ink_printer.show_image('/home/pi/music-screen-api/sonos-inky.png')                
+                    ink_printer.show_image(os.path.join(_ASSETS_DIR, "sonos-inky.png"))
                 else:
                     ink_printer.blank_screen()
             

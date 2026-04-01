@@ -1,4 +1,5 @@
-__pycache__
+__pycache__/
+**/__pycache__/
 .DS_Store
 sonos_settings.py
 .idea/inspectionProfiles/profiles_settings.xml
