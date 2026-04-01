@@ -70,6 +70,9 @@ class ShazamIdentifier:
         self._cache = {}            # key: (station, uri) -> {"result": ..., "timestamp": float}
         self._pending_task = None   # currently running asyncio.Task, if any
         self._last_identify_time = 0.0
+        self._last_failed = False
+        self._previous_success = False
+        self._should_revert = False
 
         # Check ffmpeg availability at startup — disable feature if missing
         if shutil.which("ffmpeg") is None:
@@ -106,7 +109,7 @@ class ShazamIdentifier:
             return
 
         self._last_identify_time = now
-        _LOGGER.info("Starting Shazam identification...")
+        _LOGGER.debug("Starting Shazam identification...")
         self._pending_task = asyncio.create_task(self._do_identify(sonos_data))
 
     def get_result(self):
@@ -126,10 +129,26 @@ class ShazamIdentifier:
         self._pending_task = None
 
         try:
-            return task.result()
+            result = task.result()
         except Exception as err:
             _LOGGER.warning("Shazam identification task raised an exception: %s", err)
-            return None
+            result = None
+
+        if isinstance(result, dict):
+            self._previous_success = True
+        else:
+            if self._previous_success:
+                self._should_revert = True
+            self._previous_success = False
+
+        return result
+
+    @property
+    def should_revert(self):
+        """True once after a failed identification follows a successful one (track ended)."""
+        revert = self._should_revert
+        self._should_revert = False
+        return revert
 
     # ------------------------------------------------------------------
     # Internal: main identification flow

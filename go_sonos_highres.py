@@ -122,6 +122,10 @@ async def redraw(session, sonos_data, display, shazam_identifier=None):
                 shazam_timeout = getattr(sonos_settings, "shazam_show_details_timeout", None)
                 if shazam_timeout is not None:
                     display.show_details_timeout = shazam_timeout
+            elif shazam_identifier.should_revert:
+                # Previous Shazam success followed by failure means the identified track ended.
+                # Trigger a display refresh so the Sonos-provided station image is shown.
+                sonos_data._track_is_new = True
 
         new_track_info = sonos_data.is_track_new()
         force_update = False
