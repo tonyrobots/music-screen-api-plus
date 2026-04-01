@@ -4,6 +4,7 @@ Captures audio from a stream URL via ffmpeg and identifies it using ShazamIO.
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -42,6 +43,9 @@ def suppress_shazam_noise():
 _CACHE_TTL_HIT = 180   # seconds to cache a successful identification
 _CACHE_TTL_MISS = 60   # seconds to cache a failed identification (no match)
 _CACHE_MAX_ENTRIES = 20
+
+# User-editable stream URL override file (repo root, sibling of lib/)
+_STREAM_URLS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "stream_urls.json")
 
 # TuneIn OPML endpoint for resolving station IDs to stream URLs
 _TUNEIN_URL = "http://opml.radiotime.com/Tune.ashx?id={station_id}&render=json"
@@ -170,8 +174,15 @@ class ShazamIdentifier:
         cache_key = (station, uri)
         cached = self._cache.get(cache_key)
         if cached is not None:
-            stream_url = cached["result"]
-        else:
+            age = time.monotonic() - cached["timestamp"]
+            ttl = _CACHE_TTL_HIT if cached["result"] else _CACHE_TTL_MISS
+            if age < ttl:
+                stream_url = cached["result"]
+            else:
+                del self._cache[cache_key]
+                cached = None
+
+        if cached is None:
             stream_url = await self._extract_stream_url(uri, station)
             self._store_cache(cache_key, stream_url)
 
@@ -183,7 +194,14 @@ class ShazamIdentifier:
         audio_bytes = await self._capture_from_stream(stream_url, self._capture_duration)
         if not audio_bytes:
             _LOGGER.warning("ffmpeg returned no audio from: %s", stream_url)
+            self._cache.pop(cache_key, None)
+            if station:
+                self._mark_stream_url_failed(station, stream_url)
             return None
+
+        # ffmpeg succeeded — persist the URL so future runs skip resolution
+        if station:
+            self._save_stream_url(station, stream_url)
 
         # --- Identify ---
         # ShazamIO's recognize() expects a file path, so write to a temp file
@@ -219,23 +237,31 @@ class ShazamIdentifier:
         Resolve a Sonos URI to a playable HTTP stream URL.
 
         Tries in order:
-        1. x-rincon-mp3radio:// prefix — strip and prepend http://
-        2. Already http(s):// — use directly
-        3. x-sonosapi-radio/stream: — extract TuneIn station ID, query OPML API
-        4. Radio-Browser.info lookup by station name
+        1. User override file (stream_urls.json in repo root)
+        2. x-rincon-mp3radio:// prefix — strip and prepend http://
+        3. Already http(s):// — use directly
+        4. x-sonosapi-radio/stream: — extract TuneIn station ID, query OPML API
+        5. Radio-Browser.info lookup by station name
         """
         if not uri:
             return None
 
-        # 1. x-rincon-mp3radio://host/path -> http://host/path
+        # 1. User override file — checked first so the user can always force a URL
+        if station_name:
+            url = self._load_user_stream_url(station_name)
+            if url:
+                _LOGGER.debug("Using user-supplied stream URL for %r: %s", station_name, url)
+                return url
+
+        # 2. x-rincon-mp3radio://host/path -> http://host/path
         if uri.startswith("x-rincon-mp3radio://"):
             return "http://" + uri[len("x-rincon-mp3radio://"):]
 
-        # 2. Direct HTTP(S) URL
+        # 3. Direct HTTP(S) URL
         if uri.startswith("http://") or uri.startswith("https://"):
             return uri
 
-        # 3. x-sonosapi-radio: or x-sonosapi-stream: with TuneIn ID -> OPML lookup
+        # 4. x-sonosapi-radio: or x-sonosapi-stream: with TuneIn ID -> OPML lookup
         if uri.startswith(("x-sonosapi-radio:", "x-sonosapi-stream:")):
             match = re.search(r"tunein%3a(\d+)", uri) or re.search(r"(s\d+)", uri)
             if match:
@@ -246,7 +272,7 @@ class ShazamIdentifier:
                 if url:
                     return url
 
-        # 4. Radio-Browser.info lookup by station name
+        # 5. Radio-Browser.info lookup by station name
         if station_name:
             url = await self._resolve_radio_browser(station_name)
             if url:
@@ -288,6 +314,104 @@ class ShazamIdentifier:
         except Exception as err:
             _LOGGER.warning("Radio-Browser.info lookup failed for %s: %s", station_name, err)
         return None
+
+    def _load_user_stream_url(self, station_name):
+        """
+        Look up a station name in the user's stream_urls.json override file.
+
+        The file is loaded fresh each call (it's small and the user may edit
+        it while the app is running). Lookup is case-insensitive.
+
+        Supports two value formats:
+        - Plain string: user-supplied URL, always returned as-is.
+        - Dict with "url" key: auto-discovered entry. Skipped if "status" == "failed".
+
+        Returns the URL string if found and usable, None otherwise.
+        """
+        if not os.path.exists(_STREAM_URLS_FILE):
+            return None
+        try:
+            with open(_STREAM_URLS_FILE, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            station_lower = station_name.lower()
+            for key, value in data.items():
+                if key.lower() == station_lower:
+                    if isinstance(value, str):
+                        return value
+                    if isinstance(value, dict):
+                        if value.get("status") == "failed":
+                            return None
+                        return value.get("url")
+        except Exception as err:
+            _LOGGER.warning("Failed to read %s: %s", _STREAM_URLS_FILE, err)
+        return None
+
+    def _save_stream_url(self, station_name, url):
+        """
+        Persist an auto-discovered stream URL to stream_urls.json.
+
+        Does not overwrite existing user-supplied entries (plain strings).
+        Writes/updates the entry as {"url": url, "auto": true}.
+        """
+        try:
+            if os.path.exists(_STREAM_URLS_FILE):
+                with open(_STREAM_URLS_FILE, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+            else:
+                data = {}
+
+            station_lower = station_name.lower()
+            for key, value in data.items():
+                if key.lower() == station_lower:
+                    # Never overwrite a user-supplied plain string entry
+                    if isinstance(value, str):
+                        return
+                    # Update the existing dict entry
+                    data[key] = {"url": url, "auto": True}
+                    break
+            else:
+                # No existing entry — create one using the original station name
+                data[station_name] = {"url": url, "auto": True}
+
+            with open(_STREAM_URLS_FILE, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=4)
+
+            _LOGGER.info("Saved stream URL for %r to stream_urls.json", station_name)
+        except Exception as err:
+            _LOGGER.warning("Failed to save stream URL for %r: %s", station_name, err)
+
+    def _mark_stream_url_failed(self, station_name, url):
+        """
+        Mark an auto-discovered stream URL as failed in stream_urls.json.
+
+        Only modifies dict entries with "auto": true. User-supplied plain string
+        entries are left untouched.
+        """
+        if not os.path.exists(_STREAM_URLS_FILE):
+            return
+        try:
+            with open(_STREAM_URLS_FILE, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+
+            station_lower = station_name.lower()
+            for key, value in data.items():
+                if key.lower() == station_lower:
+                    # User-supplied entries are sacred — never modify them
+                    if isinstance(value, str):
+                        return
+                    if isinstance(value, dict) and value.get("auto"):
+                        data[key] = {**value, "status": "failed"}
+                    break
+            else:
+                # No matching entry — nothing to mark
+                return
+
+            with open(_STREAM_URLS_FILE, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=4)
+
+            _LOGGER.info("Marked stream URL as failed for %r in stream_urls.json", station_name)
+        except Exception as err:
+            _LOGGER.warning("Failed to mark stream URL as failed for %r: %s", station_name, err)
 
     # ------------------------------------------------------------------
     # Internal: audio capture
