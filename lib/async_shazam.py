@@ -358,7 +358,12 @@ class ShazamIdentifier:
                 with open(_STREAM_URLS_FILE, "r", encoding="utf-8") as fh:
                     data = json.load(fh)
             else:
-                data = {}
+                data = {
+                    "_comment": "Station name to stream URL mappings for Shazam audio capture. "
+                               "To add a station, just add a name and URL. Entries with 'auto' "
+                               "were discovered automatically. Entries marked 'failed' could not "
+                               "be reached and should be corrected or deleted."
+                }
 
             station_lower = station_name.lower()
             for key, value in data.items():

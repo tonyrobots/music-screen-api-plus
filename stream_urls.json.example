@@ -1,6 +1,0 @@
-{
-    "_comment": "Map station names (as shown in Sonos) to stream URLs for Shazam audio capture. Copy to stream_urls.json to use. To add a station, just add a name and URL (see Freeform Portland below). Entries with 'auto' were discovered automatically. Entries marked 'failed' could not be reached and should be corrected or deleted.",
-    "Freeform Portland": "https://stream.freeformportland.org/listen/freeformportland/relay.mp3",
-    "Auto-discovered Station": {"url": "https://example.com/stream", "auto": true},
-    "Failed Station": {"url": "https://dead.example.com/stream", "auto": true, "status": "failed"}
-}
