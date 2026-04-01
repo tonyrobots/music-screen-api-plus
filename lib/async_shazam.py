@@ -350,8 +350,7 @@ class ShazamIdentifier:
         """
         Persist an auto-discovered stream URL to stream_urls.json.
 
-        Does not overwrite existing user-supplied entries (plain strings).
-        Writes/updates the entry as {"url": url, "auto": true}.
+        Skips the write if there's already a working entry for this station.
         """
         try:
             if os.path.exists(_STREAM_URLS_FILE):
@@ -368,14 +367,15 @@ class ShazamIdentifier:
             station_lower = station_name.lower()
             for key, value in data.items():
                 if key.lower() == station_lower:
-                    # Never overwrite a user-supplied plain string entry
+                    # Already have a working entry — don't overwrite
                     if isinstance(value, str):
                         return
-                    # Update the existing dict entry
+                    if isinstance(value, dict) and value.get("status") != "failed":
+                        return
+                    # Entry exists but is failed — update with working URL
                     data[key] = {"url": url, "auto": True}
                     break
             else:
-                # No existing entry — create one using the original station name
                 data[station_name] = {"url": url, "auto": True}
 
             with open(_STREAM_URLS_FILE, "w", encoding="utf-8") as fh:
@@ -387,10 +387,9 @@ class ShazamIdentifier:
 
     def _mark_stream_url_failed(self, station_name, url):
         """
-        Mark an auto-discovered stream URL as failed in stream_urls.json.
+        Mark a stream URL as failed in stream_urls.json.
 
-        Only modifies dict entries with "auto": true. User-supplied plain string
-        entries are left untouched.
+        Adds "status": "failed" to any entry regardless of origin.
         """
         try:
             if os.path.exists(_STREAM_URLS_FILE):
@@ -407,10 +406,9 @@ class ShazamIdentifier:
             station_lower = station_name.lower()
             for key, value in data.items():
                 if key.lower() == station_lower:
-                    # User-supplied entries are sacred — never modify them
                     if isinstance(value, str):
-                        return
-                    if isinstance(value, dict) and value.get("auto"):
+                        data[key] = {"url": value, "status": "failed"}
+                    elif isinstance(value, dict):
                         data[key] = {**value, "status": "failed"}
                     break
             else:
