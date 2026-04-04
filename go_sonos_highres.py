@@ -36,6 +36,9 @@ show_spotify_code = getattr(sonos_settings, "show_spotify_code", None)
 show_spotify_albumart = getattr(sonos_settings, "show_spotify_albumart", None)
 
 shazam_enabled = getattr(sonos_settings, "shazam_enabled", False)
+radio_show_details = getattr(sonos_settings, "radio_show_details", None)
+radio_show_details_timeout = getattr(sonos_settings, "radio_show_details_timeout", "UNSET")
+radio_prefer_station_art = getattr(sonos_settings, "radio_prefer_station_art", False)
 if shazam_enabled:
     from async_shazam import ShazamIdentifier, suppress_shazam_noise
 
@@ -108,28 +111,29 @@ async def redraw(session, sonos_data, display, shazam_identifier=None):
     if sonos_data.status == "PLAYING":
         # Apply any completed Shazam identification before checking for new track
         if shazam_identifier:
-            # Restore default detail timeout (Shazam may have overridden it)
-            if not sonos_data.shazam_resolved:
-                display.show_details_timeout = getattr(
-                    sonos_settings, "show_details_timeout", None)
             shazam_result = shazam_identifier.get_result()
             if shazam_result and sonos_data.needs_shazam:
                 sonos_data.trackname = shazam_result["track"]
                 sonos_data.artist = shazam_result["artist"]
                 if shazam_result.get("album"):
                     sonos_data.album = shazam_result["album"]
-                if shazam_result.get("image_url"):
+                if shazam_result.get("image_url") and not radio_prefer_station_art:
                     sonos_data.image_uri = shazam_result["image_url"]
                 sonos_data.shazam_resolved = True
                 sonos_data._track_is_new = True
-                # Use longer detail timeout for Shazam-identified tracks
-                shazam_timeout = getattr(sonos_settings, "shazam_show_details_timeout", None)
-                if shazam_timeout is not None:
-                    display.show_details_timeout = shazam_timeout
             elif shazam_identifier.should_revert:
-                # Previous Shazam success followed by failure means the identified track ended.
-                # Trigger a display refresh so the Sonos-provided station image is shown.
                 sonos_data._track_is_new = True
+
+        # Apply radio-specific display overrides, or restore global defaults
+        if sonos_data.type == "radio":
+            if radio_show_details is not None:
+                display.show_details = radio_show_details
+            if radio_show_details_timeout != "UNSET":
+                display.show_details_timeout = radio_show_details_timeout
+        else:
+            display.show_details = sonos_settings.show_details
+            display.show_details_timeout = getattr(
+                sonos_settings, "show_details_timeout", None)
 
         new_track_info = sonos_data.is_track_new()
         force_update = False

@@ -60,6 +60,7 @@ The e-ink path (`go_sonos.py`) is legacy: synchronous polling loop using `lib/so
 - Shazam integration is conditionally imported only when `shazam_enabled` is True
 - Display dynamically adjusts thumbnail size and font size based on track/artist/album text length
 - Webhook mode is auto-detected: switches from polling to webhook on first received webhook, falls back after 130s timeout
+- Radio-specific display settings (`radio_show_details`, `radio_show_details_timeout`, `radio_prefer_station_art`) override global display behavior when `sonos_data.type == "radio"`, and are restored to global defaults when switching to non-radio content
 
 ## Shazam Integration Notes
 
